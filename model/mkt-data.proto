@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message Ticker {
+  string symbol = 1;
+  string name = 2;
+  string sector = 3;
+  repeated Value data = 4;
+}
+
+message Value {
+  string date = 1;
+  double price = 2;
+}
