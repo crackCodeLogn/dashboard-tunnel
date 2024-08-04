@@ -1,1 +1,8 @@
 .idea
+calendar/credentials.json
+calendar/token.json
+calendar/source.txt
+calendar/Events.Trial.ipynb
+
+__pycache__
+*/__pycache__

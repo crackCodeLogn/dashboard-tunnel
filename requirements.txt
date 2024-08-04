@@ -1,2 +1,7 @@
 yfinance~=0.2.31
 Flask~=2.3.2
+pandas~=2.2.2
+flask_cors
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
