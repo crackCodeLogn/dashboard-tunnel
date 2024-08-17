@@ -19,7 +19,8 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 color_code_dict = {
     "#33b679": 2,  # sage
-    "#0b8043": 10  # basil
+    "#0b8043": 10, # basil
+    "#D50000": 11  # tomato
 }
 edt_est_time_diff = {
     "EDT": "-04",
@@ -52,19 +53,24 @@ def create_token_if_expired():
     service = build('calendar', 'v3', credentials=creds)
 
 
-def generate_event(title, color_code, start_date, start_time, duration_minutes, description=None):
+def generate_event(title, start_date, start_time='0000', color_code='#D50000', duration_minutes=1440, description=None, all_day=False):
     from datetime import datetime
+
+    date_start, date_end = None, None
+
     start_date = start_date[:start_date.index("T")]
     start_date_str = f"{start_date}T{start_time}"
     dt_start = datetime.strptime(start_date_str, "%Y-%m-%dT%H%M")
     logging.log(logging.INFO, dt_start)
+ 
     date_start = dt_start.strftime(f"%Y-%m-%dT%H:%M:%S{time_diff}:00")  # change this -04 to -05 when EDT gets over
 
     dt_end = dt_start + timedelta(minutes=duration_minutes)
-    date_end = dt_end.strftime(f"%Y-%m-%dT%H:%M:%S{time_diff}:00")  # change this -04 to -05 when EDT gets over
+    date_end = dt_end.strftime(f"%Y-%m-%dT%H:%M:%S{time_diff}:00")
 
-    color_code = color_code_dict[color_code]
+    color_code = color_code_dict.get(color_code, 11)
     # https://lukeboyle.com/blog/posts/google-calendar-api-color-id
+    # https://google-calendar-simple-api.readthedocs.io/en/latest/colors.html
 
     event = {
         'summary': title,
@@ -83,6 +89,15 @@ def generate_event(title, color_code, start_date, start_time, duration_minutes, 
     }
     if description:
         event['description'] = description
+    if all_day:
+        event['reminders'] = {
+            'useDefault': False,
+            'overrides': [
+                {'method': 'popup', 'minutes': 4320},
+                {'method': 'popup', 'minutes': 1440},
+            ]
+        }
+    print(event)
     return event
 
 
@@ -96,10 +111,25 @@ def create_session():
     start_time = data['SessionStartTime']
     duration = data['SessionLengthInMinutes']
 
-    event = generate_event(title, color_code, start_dt, start_time, duration)
+    event = generate_event(title, start_dt, start_time, duration, color_code=color_code)
     event = service.events().insert(calendarId='primary', body=event).execute()
     print(f"Event created: {event.get('htmlLink')}")
     return {}, 200
+
+
+@app.route('/cal/expiry', methods=['POST'])
+def create_expiry():
+    # create expiry node
+    data = request.get_json()
+    #print(data)
+    title = f"expiry: {data['Data']}".lower()
+    start_dt = data['Date']
+
+    event = generate_event(title, start_dt, all_day=True)
+    event = service.events().insert(calendarId='primary', body=event).execute()
+    print(f"Event created: {event.get('htmlLink')}")
+    return {}, 200
+
 
 
 if __name__ == '__main__':
