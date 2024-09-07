@@ -111,7 +111,7 @@ def create_session():
     start_time = data['SessionStartTime']
     duration = data['SessionLengthInMinutes']
 
-    event = generate_event(title, start_dt, start_time, duration, color_code=color_code)
+    event = generate_event(title, start_dt, start_time, duration_minutes=duration, color_code=color_code)
     event = service.events().insert(calendarId='primary', body=event).execute()
     print(f"Event created: {event.get('htmlLink')}")
     return {}, 200
