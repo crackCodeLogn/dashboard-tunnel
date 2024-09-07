@@ -5,3 +5,5 @@ flask_cors
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+pypdf2
+protobuf

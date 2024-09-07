@@ -1,4 +1,4 @@
-class Investment:
+class Instrument:
     def __init__(self, symbol, qty, dt, ticker_price, sector, account, type, **kwargs) -> None:
         self.symbol = symbol
         self.qty = qty

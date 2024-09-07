@@ -1,15 +1,13 @@
-import pprint
+import os
+import sys
 from datetime import datetime
-import pandas as pd
 
+import pandas as pd
 import yfinance as yf
 from flask import Flask, request
 from flask_cors import CORS
-from scipy.optimize import direct
 
-from Investment import Investment
-import os
-import sys
+from Instrument import Instrument
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.output import mkt_data_pb2 as MarketData
@@ -69,23 +67,23 @@ def generate_proto_Portfolio():
     return MarketData.Portfolio()
 
 
-def generate_proto_Investment(portfolio, investment: Investment):
+def generate_proto_Instrument(portfolio, imnt: Instrument):
     global ticker_name_map
-    invest = MarketData.Investment()
-    invest.ticker.symbol = investment.symbol
+    imnt_proto = MarketData.Instrument()
+    imnt_proto.ticker.symbol = imnt.symbol
 
-    if invest.ticker.symbol not in ticker_name_map:
-        ticker_name_map[invest.ticker.symbol] = get_ticker_name_without_country(invest.ticker.symbol)
-    ticker_name = ticker_name_map[invest.ticker.symbol]
+    if imnt_proto.ticker.symbol not in ticker_name_map:
+        ticker_name_map[imnt_proto.ticker.symbol] = get_ticker_name_without_country(imnt_proto.ticker.symbol)
+    ticker_name = ticker_name_map[imnt_proto.ticker.symbol]
 
-    invest.ticker.name = ticker_name
-    invest.ticker.sector = investment.sector
-    invest.ticker.type = MarketData.InstrumentType.Value(investment.type)
-    value_data = generate_proto_Value(investment.dt, investment.ticker_price)
-    invest.ticker.data.append(value_data)
-    invest.qty = investment.qty
-    invest.accountType = MarketData.AccountType.Value(investment.account)
-    portfolio.investments.append(invest)
+    imnt_proto.ticker.name = ticker_name
+    imnt_proto.ticker.sector = imnt.sector
+    imnt_proto.ticker.type = MarketData.InstrumentType.Value(imnt.type)
+    value_data = generate_proto_Value(imnt.dt, imnt.ticker_price)
+    imnt_proto.ticker.data.append(value_data)
+    imnt_proto.qty = imnt.qty
+    imnt_proto.accountType = MarketData.AccountType.Value(imnt.account)
+    portfolio.instruments.append(imnt_proto)
 
 
 @app.route('/mkt/<country_code>/ticker/type/<symbol>', methods=['GET'])
@@ -230,12 +228,12 @@ def get_mkt_portfolio_data(direction):
         sector = str(row['Sector'])
         account = str(row['Account'])
         imnt_type = get_ticker_type("CA", ticker)
-        investment = Investment(get_symbol(ticker), qty, dt, ticker_price, sector, account, imnt_type)
-        print(investment)
-        imnts.append(investment)
+        imnt = Instrument(get_symbol(ticker), qty, dt, ticker_price, sector, account, imnt_type)
+        print(imnt)
+        imnts.append(imnt)
 
     portfolio = generate_proto_Portfolio()
-    [generate_proto_Investment(portfolio, investment) for investment in imnts]
+    [generate_proto_Instrument(portfolio, imnt) for imnt in imnts]
     print(portfolio)
 
     return portfolio.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}
