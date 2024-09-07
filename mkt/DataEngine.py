@@ -5,6 +5,8 @@ import pandas as pd
 import yfinance as yf
 from flask import Flask, request
 from flask_cors import CORS
+from scipy.optimize import direct
+
 from Investment import Investment
 import os
 import sys
@@ -22,14 +24,23 @@ end_date = '2023-10-10'
 
 ticker_name_map = {}
 country_code_map = {
-    "CA": ".TO",
+    "CA": "TO",
     "US": "",
-    "IN": ".NS",  # Nifty-50
+    "IN": "NS",  # Nifty-50
+}
+
+stk_exchange_map = {
+    'ALV': 'V'  # tsx-v
 }
 
 
+def get_symbol(symbol, country_code="CA"):
+    return f"{symbol}.{stk_exchange_map.get(symbol, country_code_map.get(country_code, ""))}"
+
+
 def download_financial_data(symbol, start=start_date, end=end_date, country_code="CA", use_original_symbol=True):
-    if not use_original_symbol: symbol = f"{symbol}{country_code_map[country_code]}"
+    if not use_original_symbol: symbol = get_symbol(symbol, country_code)
+    print(symbol)
     data = yf.download(symbol, start=start, end=end)
     return data[["Adj Close"]], symbol
 
@@ -80,7 +91,7 @@ def generate_proto_Investment(portfolio, investment: Investment):
 @app.route('/mkt/<country_code>/ticker/type/<symbol>', methods=['GET'])
 def get_ticker_type(country_code, symbol):
     # http://localhost:8083/mkt/CA/ticker/type/CCO
-    ticker = yf.Ticker(symbol + country_code_map[country_code])
+    ticker = yf.Ticker(get_symbol(symbol, country_code))
     return ticker.info['quoteType']
 
 
@@ -94,7 +105,7 @@ def get_ticker_type_without_country(symbol):
 @app.route('/mkt/<country_code>/ticker/name/<symbol>', methods=['GET'])
 def get_ticker_name(country_code, symbol):
     # http://localhost:8083/mkt/CA/ticker/name/CCO
-    ticker = yf.Ticker(symbol + country_code_map[country_code])
+    ticker = yf.Ticker(get_symbol(symbol, country_code))
     return ticker.info['longName']
 
 
@@ -118,7 +129,7 @@ def get_ticker_name_without_country(symbol):
 @app.route('/mkt/<country_code>/ticker/sector/<symbol>', methods=['GET'])
 def get_ticker_sector(country_code, symbol):
     # http://localhost:8083/mkt/CA/ticker/sector/CCO
-    return yf.Ticker(symbol + country_code_map[country_code]).info.get('sector', 'Unknown')
+    return yf.Ticker(get_symbol(symbol, country_code)).info.get('sector', 'Unknown')
 
 
 @app.route('/mkt/ticker/sector/<symbol>', methods=['GET'])
@@ -139,26 +150,32 @@ def get_ticker_sector_without_country(symbol):
 
 @app.route('/mkt', methods=['GET'])
 def get_mkt_data():
-    # http://localhost:8083/mkt?symbol=CM&start=2023-10-01&end=2023-10-09
+    # http://localhost:8083/mkt?symbol=CM&start=2023-10-01&end=2023-10-09&original=1
+    # http://localhost:8083/mkt?symbol=CM.TO&start=2023-10-01&end=2023-10-09&original=1
+    # http://localhost:8083/mkt?symbol=CM.TO&start=2023-10-01&end=2023-10-09&original=0
     symbol = request.args.get('symbol')
     start = request.args.get('start')
     end = request.args.get('end')
     country_code = request.args.get('country', '')
-    if country_code == '':
-        country_ext = symbol[symbol.rindex('.'):]
+    use_original_symbol = int(request.args.get('original')) == 1
+    if country_code == '' and not use_original_symbol:
+        country_ext = symbol[symbol.rindex('.') + 1:]
         for key in country_code_map.keys():
             if country_ext == country_code_map[key]:
                 country_code = key
                 break
         symbol = symbol[:symbol.rindex('.')]
-
-    data, actual_symbol = download_financial_data(symbol, start, end, country_code, use_original_symbol=False)
+    data, actual_symbol = download_financial_data(symbol, start, end, country_code,
+                                                  use_original_symbol=use_original_symbol)
     values = [{"date": convert_to_date(index), "price": row['Adj Close']} for index, row in data.iterrows()]
     return {
         "symbol": actual_symbol,
-        "name": get_ticker_name(country_code, symbol),
-        "sector": get_ticker_sector(country_code, symbol),
-        "type": get_ticker_type(country_code, symbol),
+        "name": get_ticker_name(country_code, symbol) if not use_original_symbol else
+        get_ticker_name_without_country(symbol),
+        "sector": get_ticker_sector(country_code, symbol) if not use_original_symbol else
+        get_ticker_sector_without_country(symbol),
+        "type": get_ticker_type(country_code, symbol) if not use_original_symbol else
+        get_ticker_type_without_country(symbol),
         "data": values
     }
 
@@ -170,50 +187,55 @@ def get_mkt_data_proto():
     start = request.args.get('start')
     end = request.args.get('end')
     country_code = request.args.get('country', '')
-    if country_code == '':
-        country_ext = symbol[symbol.rindex('.'):]
+    use_original_symbol = int(request.args.get('original')) == 1
+    if country_code == '' and not use_original_symbol:
+        country_ext = symbol[symbol.rindex('.') + 1:]
         for key in country_code_map.keys():
             if country_ext == country_code_map[key]:
                 country_code = key
                 break
         symbol = symbol[:symbol.rindex('.')]
-
-    data, actual_symbol = download_financial_data(symbol, start, end, country_code, use_original_symbol=False)
+    data, actual_symbol = download_financial_data(symbol, start, end, country_code,
+                                                  use_original_symbol=use_original_symbol)
     ticker = generate_proto_Ticker(actual_symbol,
-                                   name=get_ticker_name(country_code, symbol),
-                                   sector=get_ticker_sector(country_code, symbol),
-                                   type=get_ticker_type(country_code, symbol))
-    for index, row in data.iterrows(): ticker.data.append(generate_proto_Value(convert_to_date(index), row['Adj Close']))
+                                   name=get_ticker_name(country_code, symbol) if not use_original_symbol else
+                                   get_ticker_name_without_country(symbol),
+                                   sector=get_ticker_sector(country_code, symbol) if not use_original_symbol else
+                                   get_ticker_sector_without_country(symbol),
+                                   type=get_ticker_type(country_code, symbol) if not use_original_symbol else
+                                   get_ticker_type_without_country(symbol))
+    for index, row in data.iterrows(): ticker.data.append(
+        generate_proto_Value(convert_to_date(index), row['Adj Close']))
     print(ticker)
 
     return ticker.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}
 
 
 ## Only for CA
-@app.route('/proto/mkt/portfolio', methods=['GET'])
-def get_mkt_portfolio_data():
+@app.route('/proto/mkt/portfolio/<direction>', methods=['GET'])
+def get_mkt_portfolio_data(direction):
     exempt_ticker_in_data_source = ["Total invested"]
-    purchases = []
+    imnts = []
 
     import platform
-    src_mkt_data = "/var/mkt-data.txt" if platform.system() == "Linux" else "C:\\mkt-data.txt"
+    src_mkt_data = f"/var/mkt-data-{direction}.txt" if platform.system() == "Linux" else "C:\\mkt-data.txt"
 
     data_source = pd.read_csv(open(src_mkt_data).readline())
     for index, row in data_source.iterrows():
         ticker = row['Stock code']
         if type(ticker) == float or ticker in exempt_ticker_in_data_source: continue
-        qty = row['Qty bought']
+        qty = row['Qty']
         dt = str(row['Trade date'])
         ticker_price = float(row['Price per share'])
         sector = str(row['Sector'])
         account = str(row['Account'])
         imnt_type = get_ticker_type("CA", ticker)
-        investment = Investment(f"{ticker}.TO", qty, dt, ticker_price, sector, account, imnt_type)
+        investment = Investment(get_symbol(ticker), qty, dt, ticker_price, sector, account, imnt_type)
         print(investment)
-        purchases.append(investment)
+        imnts.append(investment)
 
     portfolio = generate_proto_Portfolio()
-    [generate_proto_Investment(portfolio, investment) for investment in purchases]
+    [generate_proto_Investment(portfolio, investment) for investment in imnts]
     print(portfolio)
 
     return portfolio.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}
