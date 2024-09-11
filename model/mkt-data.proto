@@ -9,7 +9,7 @@ message Ticker {
 }
 
 message Value {
-  string date = 1;
+  int32 date = 1; // store date in yyyyMMdd format
   double price = 2;
 }
 
@@ -25,6 +25,7 @@ message Instrument {
   Ticker ticker = 1;
   double qty = 2;
   AccountType accountType = 3;
+  Direction direction = 4;
 }
 
 message Portfolio {
@@ -32,6 +33,10 @@ message Portfolio {
   repeated Instrument instruments = 2;
 }
 
+enum Direction {
+  BUY = 0;
+  SELL = 1;
+}
 
 enum AccountType {
   TFSA = 0;

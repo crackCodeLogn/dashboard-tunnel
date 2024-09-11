@@ -31,6 +31,11 @@ stk_exchange_map = {
     'ALV': 'V'  # tsx-v
 }
 
+direction_map = {
+    'b': 'BUY',
+    's': 'SELL'
+}
+
 
 def get_symbol(symbol, country_code="CA"):
     return f"{symbol}.{stk_exchange_map.get(symbol, country_code_map.get(country_code, ""))}"
@@ -58,7 +63,8 @@ def generate_proto_Ticker(symbol: str, name: str = "", sector: str = "", type: s
 
 def generate_proto_Value(date: str, price: float):
     value = MarketData.Value()
-    value.date = date
+    date_object = datetime.strptime(date, '%Y-%m-%d')
+    value.date = int(date_object.strftime('%Y%m%d'))
     value.price = price
     return value
 
@@ -67,7 +73,7 @@ def generate_proto_Portfolio():
     return MarketData.Portfolio()
 
 
-def generate_proto_Instrument(portfolio, imnt: Instrument):
+def generate_proto_Instrument(portfolio, imnt: Instrument, direction: str):
     global ticker_name_map
     imnt_proto = MarketData.Instrument()
     imnt_proto.ticker.symbol = imnt.symbol
@@ -83,6 +89,7 @@ def generate_proto_Instrument(portfolio, imnt: Instrument):
     imnt_proto.ticker.data.append(value_data)
     imnt_proto.qty = imnt.qty
     imnt_proto.accountType = MarketData.AccountType.Value(imnt.account)
+    imnt_proto.direction = MarketData.Direction.Value(direction)
     portfolio.instruments.append(imnt_proto)
 
 
@@ -212,11 +219,19 @@ def get_mkt_data_proto():
 ## Only for CA
 @app.route('/proto/mkt/portfolio/<direction>', methods=['GET'])
 def get_mkt_portfolio_data(direction):
+    """
+    GET market portfolio based on the direction supplied
+    :param direction:
+        - b: for getting data of stocks bought
+        - s: for getting data of stocks sold
+    :return: proto based data Portfolio from market data protobuf
+    """
     exempt_ticker_in_data_source = ["Total invested"]
     imnts = []
 
     import platform
     src_mkt_data = f"/var/mkt-data-{direction}.txt" if platform.system() == "Linux" else "C:\\mkt-data.txt"
+    direction = direction_map[direction]
 
     data_source = pd.read_csv(open(src_mkt_data).readline())
     for index, row in data_source.iterrows():
@@ -227,13 +242,14 @@ def get_mkt_portfolio_data(direction):
         ticker_price = float(row['Price per share'])
         sector = str(row['Sector'])
         account = str(row['Account'])
-        imnt_type = get_ticker_type("CA", ticker)
-        imnt = Instrument(get_symbol(ticker), qty, dt, ticker_price, sector, account, imnt_type)
+        symbol = get_symbol(ticker)
+        imnt_type = get_ticker_type_without_country(symbol)
+        imnt = Instrument(symbol, qty, dt, ticker_price, sector, account, imnt_type)
         print(imnt)
         imnts.append(imnt)
 
     portfolio = generate_proto_Portfolio()
-    [generate_proto_Instrument(portfolio, imnt) for imnt in imnts]
+    [generate_proto_Instrument(portfolio, imnt, direction) for imnt in imnts]
     print(portfolio)
 
     return portfolio.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}

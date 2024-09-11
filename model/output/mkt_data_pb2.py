@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0emkt-data.proto\"k\n\x06Ticker\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06sector\x18\x03 \x01(\t\x12\x1d\n\x04type\x18\x04 \x01(\x0e\x32\x0f.InstrumentType\x12\x14\n\x04\x64\x61ta\x18\x05 \x03(\x0b\x32\x06.Value\"$\n\x05Value\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\r\n\x05price\x18\x02 \x01(\x01\"Y\n\nInvestment\x12\x17\n\x06ticker\x18\x01 \x01(\x0b\x32\x07.Ticker\x12\x0b\n\x03qty\x18\x02 \x01(\x01\x12!\n\x0b\x61\x63\x63ountType\x18\x03 \x01(\x0e\x32\x0c.AccountType:\x02\x18\x01\"U\n\nInstrument\x12\x17\n\x06ticker\x18\x01 \x01(\x0b\x32\x07.Ticker\x12\x0b\n\x03qty\x18\x02 \x01(\x01\x12!\n\x0b\x61\x63\x63ountType\x18\x03 \x01(\x0e\x32\x0c.AccountType\"S\n\tPortfolio\x12$\n\x0binvestments\x18\x01 \x03(\x0b\x32\x0b.InvestmentB\x02\x18\x01\x12 \n\x0binstruments\x18\x02 \x03(\x0b\x32\x0b.Instrument*(\n\x0b\x41\x63\x63ountType\x12\x08\n\x04TFSA\x10\x00\x12\x06\n\x02NR\x10\x01\x12\x07\n\x03IND\x10\x03*z\n\x0eInstrumentType\x12\n\n\x06\x45QUITY\x10\x00\x12\t\n\x05INDEX\x10\x01\x12\x07\n\x03\x45TF\x10\x02\x12\x0e\n\nMUTUALFUND\x10\x03\x12\n\n\x06\x46UTURE\x10\x04\x12\x0c\n\x08\x43URRENCY\x10\x05\x12\x12\n\x0e\x43RYPTOCURRENCY\x10\x06\x12\n\n\x06OPTION\x10\x07\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0emkt-data.proto\"k\n\x06Ticker\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06sector\x18\x03 \x01(\t\x12\x1d\n\x04type\x18\x04 \x01(\x0e\x32\x0f.InstrumentType\x12\x14\n\x04\x64\x61ta\x18\x05 \x03(\x0b\x32\x06.Value\"$\n\x05Value\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\x05\x12\r\n\x05price\x18\x02 \x01(\x01\"Y\n\nInvestment\x12\x17\n\x06ticker\x18\x01 \x01(\x0b\x32\x07.Ticker\x12\x0b\n\x03qty\x18\x02 \x01(\x01\x12!\n\x0b\x61\x63\x63ountType\x18\x03 \x01(\x0e\x32\x0c.AccountType:\x02\x18\x01\"t\n\nInstrument\x12\x17\n\x06ticker\x18\x01 \x01(\x0b\x32\x07.Ticker\x12\x0b\n\x03qty\x18\x02 \x01(\x01\x12!\n\x0b\x61\x63\x63ountType\x18\x03 \x01(\x0e\x32\x0c.AccountType\x12\x1d\n\tdirection\x18\x04 \x01(\x0e\x32\n.Direction\"S\n\tPortfolio\x12$\n\x0binvestments\x18\x01 \x03(\x0b\x32\x0b.InvestmentB\x02\x18\x01\x12 \n\x0binstruments\x18\x02 \x03(\x0b\x32\x0b.Instrument*\x1e\n\tDirection\x12\x07\n\x03\x42UY\x10\x00\x12\x08\n\x04SELL\x10\x01*(\n\x0b\x41\x63\x63ountType\x12\x08\n\x04TFSA\x10\x00\x12\x06\n\x02NR\x10\x01\x12\x07\n\x03IND\x10\x03*z\n\x0eInstrumentType\x12\n\n\x06\x45QUITY\x10\x00\x12\t\n\x05INDEX\x10\x01\x12\x07\n\x03\x45TF\x10\x02\x12\x0e\n\nMUTUALFUND\x10\x03\x12\n\n\x06\x46UTURE\x10\x04\x12\x0c\n\x08\x43URRENCY\x10\x05\x12\x12\n\x0e\x43RYPTOCURRENCY\x10\x06\x12\n\n\x06OPTION\x10\x07\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,10 +35,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INVESTMENT']._serialized_options = b'\030\001'
   _globals['_PORTFOLIO'].fields_by_name['investments']._loaded_options = None
   _globals['_PORTFOLIO'].fields_by_name['investments']._serialized_options = b'\030\001'
-  _globals['_ACCOUNTTYPE']._serialized_start=428
-  _globals['_ACCOUNTTYPE']._serialized_end=468
-  _globals['_INSTRUMENTTYPE']._serialized_start=470
-  _globals['_INSTRUMENTTYPE']._serialized_end=592
+  _globals['_DIRECTION']._serialized_start=459
+  _globals['_DIRECTION']._serialized_end=489
+  _globals['_ACCOUNTTYPE']._serialized_start=491
+  _globals['_ACCOUNTTYPE']._serialized_end=531
+  _globals['_INSTRUMENTTYPE']._serialized_start=533
+  _globals['_INSTRUMENTTYPE']._serialized_end=655
   _globals['_TICKER']._serialized_start=18
   _globals['_TICKER']._serialized_end=125
   _globals['_VALUE']._serialized_start=127
@@ -46,7 +48,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INVESTMENT']._serialized_start=165
   _globals['_INVESTMENT']._serialized_end=254
   _globals['_INSTRUMENT']._serialized_start=256
-  _globals['_INSTRUMENT']._serialized_end=341
-  _globals['_PORTFOLIO']._serialized_start=343
-  _globals['_PORTFOLIO']._serialized_end=426
+  _globals['_INSTRUMENT']._serialized_end=372
+  _globals['_PORTFOLIO']._serialized_start=374
+  _globals['_PORTFOLIO']._serialized_end=457
 # @@protoc_insertion_point(module_scope)
