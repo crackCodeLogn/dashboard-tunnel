@@ -26,7 +26,7 @@ edt_est_time_diff = {
     "EDT": "-04",
     "EST": "-05"
 }
-timezone = "EDT"  # CHANGE ONCE DAYLIGHT GOES ON / OFF
+timezone = "EST"  # CHANGE ONCE DAYLIGHT GOES ON / OFF
 time_diff = edt_est_time_diff[timezone]
 service = None
 
