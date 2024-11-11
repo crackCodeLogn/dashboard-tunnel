@@ -143,6 +143,18 @@ def get_ticker_sector_without_country(symbol):
     return yf.Ticker(symbol).info.get('sector', 'Unknown')
 
 
+@app.route('/mkt/<country_code>/ticker/dividend/<symbol>', methods=['GET'])
+def get_ticker_dividend(country_code, symbol) -> str:
+    # http://localhost:8083/mkt/CA/ticker/dividend/CCO
+    return str(yf.Ticker(get_symbol(symbol, country_code)).info.get('dividendYield', '0.0'))
+
+
+@app.route('/mkt/ticker/dividend/<symbol>', methods=['GET'])
+def get_ticker_dividend_without_country(symbol) -> str:
+    # http://localhost:8083/mkt/ticker/dividend/CCO.TO
+    return str(yf.Ticker(symbol).info.get('dividendYield', '0.0'))
+
+
 # @app.route('/proto/mkt/<country_code>/ticker/sector/<symbol>', methods=['GET'])
 # def get_ticker_sector_proto(country_code, symbol):
 #     # http://localhost:8083/proto/mkt/CA/ticker/sector/CCO
