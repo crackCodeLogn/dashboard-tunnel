@@ -92,6 +92,12 @@ def generate_proto_Instrument(portfolio, imnt: Instrument, direction: str):
     imnt_proto.direction = MarketData.Direction.Value(direction)
     portfolio.instruments.append(imnt_proto)
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    import time
+    timestamp = (int)(time.time() * 1000)
+    print(f"PINGING back with status {timestamp}")
+    return f"ALIVE-{timestamp}"
 
 @app.route('/mkt/<country_code>/ticker/type/<symbol>', methods=['GET'])
 def get_ticker_type(country_code, symbol):
