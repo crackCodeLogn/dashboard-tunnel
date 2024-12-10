@@ -92,12 +92,14 @@ def generate_proto_Instrument(portfolio, imnt: Instrument, direction: str):
     imnt_proto.direction = MarketData.Direction.Value(direction)
     portfolio.instruments.append(imnt_proto)
 
+
 @app.route('/ping', methods=['GET'])
 def ping():
     import time
     timestamp = (int)(time.time() * 1000)
     print(f"PINGING back with status {timestamp}")
     return f"ALIVE-{timestamp}"
+
 
 @app.route('/mkt/<country_code>/ticker/type/<symbol>', methods=['GET'])
 def get_ticker_type(country_code, symbol):
@@ -117,14 +119,14 @@ def get_ticker_type_without_country(symbol):
 def get_ticker_name(country_code, symbol):
     # http://localhost:8083/mkt/CA/ticker/name/CCO
     ticker = yf.Ticker(get_symbol(symbol, country_code))
-    return ticker.info['longName']
+    return str(ticker.info['longName']).replace(",", "")
 
 
 @app.route('/mkt/ticker/name/<symbol>', methods=['GET'])
 def get_ticker_name_without_country(symbol):
     # http://localhost:8083/mkt/ticker/name/CCO
     ticker = yf.Ticker(symbol)
-    return ticker.info['longName']
+    return str(ticker.info['longName']).replace(",", "")
 
 
 # @app.route('/proto/mkt/<country_code>/ticker/name/<symbol>', methods=['GET'])
