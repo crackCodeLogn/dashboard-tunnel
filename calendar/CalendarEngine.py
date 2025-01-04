@@ -145,7 +145,7 @@ def create_lib_data():
     book = data['BookName']
 
     if data['BorrowDate']:
-        title = f"lib: borrow - {book}"
+        title = f"lib: borrowed - {book}"
         dt = data['BorrowDate']
         event = generate_event(title, dt, all_day=True, color_code=event_color_code_dict['lib'])
         event = service.events().insert(calendarId='primary', body=event).execute()
