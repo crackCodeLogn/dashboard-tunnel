@@ -45,7 +45,8 @@ def download_financial_data(symbol, start=start_date, end=end_date, country_code
     if not use_original_symbol: symbol = get_symbol(symbol, country_code)
     print(symbol)
     data = yf.download(symbol, start=start, end=end)
-    return data[["Adj Close"]], symbol
+    # print(data)
+    return data[["Close"]], symbol
 
 
 def convert_to_date(dt: datetime):
@@ -192,7 +193,7 @@ def get_mkt_data():
         symbol = symbol[:symbol.rindex('.')]
     data, actual_symbol = download_financial_data(symbol, start, end, country_code,
                                                   use_original_symbol=use_original_symbol)
-    values = [{"date": convert_to_date(index), "price": row['Adj Close']} for index, row in data.iterrows()]
+    values = [{"date": convert_to_date(index), "price": row['Close']} for index, row in data.iterrows()]
     return {
         "symbol": actual_symbol,
         "name": get_ticker_name(country_code, symbol) if not use_original_symbol else
@@ -207,7 +208,7 @@ def get_mkt_data():
 
 @app.route('/proto/mkt', methods=['GET'])
 def get_mkt_data_proto():
-    # http://localhost:8083/proto/mkt?symbol=CM&start=2023-10-01&end=2023-10-09
+    # http://localhost:8083/proto/mkt?symbol=CM.TO&start=2023-10-01&end=2023-10-09&original=1
     symbol = request.args.get('symbol')
     start = request.args.get('start')
     end = request.args.get('end')
@@ -230,7 +231,7 @@ def get_mkt_data_proto():
                                    type=get_ticker_type(country_code, symbol) if not use_original_symbol else
                                    get_ticker_type_without_country(symbol))
     for index, row in data.iterrows(): ticker.data.append(
-        generate_proto_Value(convert_to_date(index), row['Adj Close']))
+        generate_proto_Value(convert_to_date(index), row['Close']))
     print(ticker)
 
     return ticker.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}
@@ -276,4 +277,4 @@ def get_mkt_portfolio_data(direction):
 
 
 if __name__ == '__main__':
-    app.run(port=8083, debug=True)
+    app.run(host='0.0.0.0', port=8083, debug=True)
