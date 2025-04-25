@@ -21,8 +21,10 @@ color_code_dict = {
     "#33b679": 2,  # sage
     "#0b8043": 10,  # basil
     "#D50000": 11,  # tomato
-    "#3F51B5": 9  # blueberry
+    "#3F51B5": 9,  # blueberry
+    "#FBD75B": 5  # banana
 }
+# todo - add the entire list of supported event colors
 event_color_code_dict = {
     'lib': '#3F51B5',
     'exp': '#D50000',
