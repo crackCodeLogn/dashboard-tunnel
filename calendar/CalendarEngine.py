@@ -33,7 +33,7 @@ edt_est_time_diff = {
     "EDT": "-04",
     "EST": "-05"
 }
-timezone = "EDT"  # CHANGE ONCE DAYLIGHT GOES ON / OFF
+timezone = "EST"  # CHANGE ONCE DAYLIGHT GOES ON / OFF
 time_diff = edt_est_time_diff[timezone]
 service = None
 
@@ -129,7 +129,7 @@ def create_session():
 def create_expiry():
     # create expiry node
     data = request.get_json()
-    # print(data)
+    print(data)
     title = f"expiry: {data['Data']}".lower()
     start_dt = data['Date']
 
