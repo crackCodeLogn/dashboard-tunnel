@@ -148,8 +148,14 @@ def get_ticker_sector(country_code, symbol):
 
 @app.route('/mkt/ticker/sector/<symbol>', methods=['GET'])
 def get_ticker_sector_without_country(symbol):
-    # http://localhost:8083/mkt/ticker/sector/CCO
+    # http://localhost:8083/mkt/ticker/sector/CCO.TO
     return yf.Ticker(symbol).info.get('sector', 'Unknown')
+
+
+@app.route('/mkt/ticker/info/<symbol>', methods=['GET'])
+def get_ticker_info_without_country(symbol):
+    # http://localhost:8083/mkt/ticker/sector/CCO.TO
+    return yf.Ticker(symbol).info
 
 
 @app.route('/mkt/<country_code>/ticker/dividend/<symbol>', methods=['GET'])
