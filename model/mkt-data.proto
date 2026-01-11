@@ -26,11 +26,51 @@ message Instrument {
   double qty = 2;
   AccountType accountType = 3;
   Direction direction = 4;
+  map<string, string> metaData = 5;
+  string userId = 6;
+
+  Signal signal = 7;
+  double dividendYield = 8;
+  double mer = 9;
+  string notes = 10;
+  Country issueCountry = 11;
+  Country originCountry = 12;
+  CurrencyCode ccy = 13;
+  repeated CorporateAction corporateActions = 14;
+  repeated CompanyOfficer companyOfficers = 15;
+  double beta = 16;
 }
 
 message Portfolio {
   repeated Investment investments = 1 [deprecated = true];
   repeated Instrument instruments = 2;
+  string userId = 3;
+}
+
+message CorrelationMatrix {
+  repeated CorrelationCell entries = 1;
+}
+
+message CorrelationCell {
+  string imntRow = 1;
+  string imntCol = 2;
+  double value = 3;
+}
+
+message CorporateAction {
+  string header = 1;
+  string message = 2;
+  string metaAmount = 3;
+  string metaDate = 4;
+  string metaEventType = 5;
+}
+
+message CompanyOfficer {
+  string name = 1;
+  string title = 2;
+  string totalPay = 3;
+  string fiscalYear = 4;
+  string age = 5;
 }
 
 enum Direction {
@@ -41,7 +81,9 @@ enum Direction {
 enum AccountType {
   TFSA = 0;
   NR = 1;
-  IND = 3;
+  FHSA = 2;
+  RRSP = 3;
+  IND = 4;
 }
 
 enum InstrumentType {
@@ -53,4 +95,25 @@ enum InstrumentType {
   CURRENCY = 5;
   CRYPTOCURRENCY = 6;
   OPTION = 7;
+}
+
+enum Signal {
+  SIG_HOLD = 0;
+  SIG_BUY = 1;
+  SIG_STRONG_BUY = 2;
+  SIG_SELL = 3;
+  SIG_STRONG_SELL = 4;
+}
+
+enum Country {
+  CA = 0;
+  IN = 1;
+  US = 2;
+  GLOBAL = 3;
+}
+
+enum CurrencyCode {
+  CAD = 0;
+  INR = 1;
+  USD = 2;
 }
