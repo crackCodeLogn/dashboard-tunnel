@@ -6,6 +6,8 @@ import pandas as pd
 import yfinance as yf
 from flask import Flask, request
 from flask_cors import CORS
+import py_eureka_client.eureka_client as eureka_client
+import argparse
 
 from Instrument import Instrument
 
@@ -16,6 +18,11 @@ from model.output import mkt_data_pb2 as MarketData
 
 app = Flask(__name__)
 CORS(app)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--port', type=int, help='Port number to use', default=8083, required=False)
+parser.add_argument('--useEureka', type=bool, help='Use Eureka discovery?', default=False, required=False)
+args = parser.parse_args()
 
 start_date = '2016-10-18'
 end_date = '2023-10-10'
@@ -283,4 +290,19 @@ def get_mkt_portfolio_data(direction):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8083, debug=True)
+    print(f"Using port: {args.port}")
+
+    if args.useEureka:
+        # Initialize the Eureka client
+        try:
+            print("Attempting registering onto eureka server")
+            eureka_client.init(
+                eureka_server="http://localhost:2012/eureka",
+                app_name="twm-calc-py-engine",
+                instance_port=args.port
+            )
+            print("Registered onto eureka server")
+        except Exception as e:
+            print("Failed to register onto eureka server ", e)
+
+    app.run(host='0.0.0.0', port=args.port, debug=True)

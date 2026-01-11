@@ -1,9 +1,13 @@
-yfinance~=0.2.31
-Flask~=2.3.2
-pandas~=2.2.2
+yfinance
+Flask
+pandas
 flask_cors
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 pypdf2
 protobuf
+scipy
+numpy
+cvxpy
+py_eureka_client
