@@ -298,7 +298,7 @@ if __name__ == '__main__':
             print("Attempting registering onto eureka server")
             eureka_client.init(
                 eureka_server="http://localhost:2012/eureka",
-                app_name="twm-calc-py-engine",
+                app_name="twm-market-data-engine",
                 instance_port=args.port
             )
             print("Registered onto eureka server")
