@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 @dataclass
 class PortfolioOptimizerParams:
-    total_capital: float
+    total_capital_at_start: float
     names: list[str]
     betas: np.ndarray
     yields: np.ndarray
@@ -40,6 +40,7 @@ class PortfolioOptimizerParams:
     vix_level: float
     max_weight: float = 0.35
     min_yield: float = 0.03
+    new_cash: float = 0.0
 
 
 def _parse_correlation_matrix(correlation_matrix: MarketData.CorrelationMatrix, symbols: list[str]) -> np.ndarray:
@@ -84,6 +85,7 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
     max_pe = _parse_float(data_map, 'max_pe')
     max_weight = _parse_float(data_map, 'max_weight')
     min_yield = _parse_float(data_map, 'min_yield')
+    new_cash = _parse_float(data_map, 'new_cash')
 
     symbols, betas, yields, returns, std_devs, pe_ratios = [], [], [], [], [], []
     total_capital = 0.0
@@ -114,7 +116,7 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
     corr_matrix = _parse_correlation_matrix(portfolio.correlationMatrix, symbols)
 
     return PortfolioOptimizerParams(
-        total_capital=total_capital,
+        total_capital_at_start=total_capital,
         names=symbols,  # careful here
         betas=np.array(betas),
         yields=np.array(yields),
@@ -129,11 +131,12 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
         target_beta=target_beta,
         vix_level=vix,
         max_weight=max_weight,
-        min_yield=min_yield
+        min_yield=min_yield,
+        new_cash=new_cash
     )
 
 
-def run_portfolio_optimizer(total_capital: float,
+def run_portfolio_optimizer(total_capital_at_start: float,
                             names: list[str],
                             betas: np.ndarray[tuple[float]],
                             yields: np.ndarray[tuple[float]],
@@ -147,7 +150,11 @@ def run_portfolio_optimizer(total_capital: float,
                             risk_mode: str,
                             target_beta: float,
                             vix_level: float,
-                            max_weight=.35, min_yield=.03):
+                            max_weight=.35, min_yield=.03,
+                            new_cash=0.0,
+                            objective_mode="MAX_RETURN"):
+    total_to_allocate = total_capital_at_start + new_cash
+
     D = np.diag(std_devs)
     covariance_matrix = D @ corr_matrix @ D
 
@@ -155,7 +162,13 @@ def run_portfolio_optimizer(total_capital: float,
     weights = cp.Variable(len(names))
     portfolio_variance = cp.quad_form(weights, covariance_matrix)
 
-    objective = cp.Maximize(weights @ returns)
+    if objective_mode == "MAX_YIELD":
+        objective = cp.Maximize(weights @ yields)
+    elif objective_mode == "BALANCED":
+        objective = cp.Maximize(0.5 * (weights @ returns) + 0.5 * (weights @ yields))
+    else:
+        objective = cp.Maximize(weights @ returns)
+
     constraints = [
         cp.sum(weights) == 1,
         weights >= 0,
@@ -182,18 +195,26 @@ def run_portfolio_optimizer(total_capital: float,
         print(f" MARKET CONTEXT: {risk_mode}")
         print(f" VIX Level: {vix_level} | Status: {prob.status.upper()}")
         print(f"============================================================")
-        print(f"{'Stock':<15} | {'Weight':<8} | {'Current $':<10} | {'Target $':<10} | {'Action'}")
+        print(
+            f"{'Stock':<15} | {'Weight':<8} | {'Current $':<10} | {'Target $':<10} | {'Return 0':<9} | {'Yield 0':<9} | {'Action'}")
         print(f"-" * 70)
 
         for i, name in enumerate(names):
-            opt_val = opt_w[i] * total_capital
+            # Target $ is based on the NEW total
+            opt_val = opt_w[i] * total_to_allocate
             curr_val = current_holdings_dict.get(name, 0)
             diff = opt_val - curr_val
 
-            action = f"BUY ${diff:,.0f}" if diff > 50 else f"SELL ${abs(diff):,.0f}"
-            if abs(diff) < 50: action = "--"
+            # If diff is positive, we use 'new_cash' or proceeds from 'sells' to buy
+            if diff > 10:
+                action = f"BUY ${diff:,.0f}"
+            elif diff < -10:
+                action = f"SELL ${abs(diff):,.0f}"
+            else:
+                action = "--"
 
-            print(f"{name:<15} | {opt_w[i]:<8.1%} | ${curr_val:>9,.0f} | ${opt_val:>9,.0f} | {action}")
+            print(
+                f"{name:<15} | {opt_w[i]:<8.1%} | ${curr_val:>9,.0f} | ${opt_val:>9,.0f} | {returns[i]:>9,.2f} | {yields[i]:>9,.2f} | {action}")
 
         print(f"============================================================")
         print(f" PORTFOLIO RISK & RETURN METRICS")
@@ -205,7 +226,7 @@ def run_portfolio_optimizer(total_capital: float,
         print(f" PORTFOLIO YIELD        : {portfolio_yield:>8.2%} (Min: {min_yield:.0%})")
         print(f"============================================================")
     else:
-        print("Optimization failed. Constraints are too restrictive for these assets.")
+        print(f"Optimization failed. Constraints are too restrictive for these assets => {prob.status}")
 
     return "Done for now"
 
@@ -273,7 +294,7 @@ def test():
 
     # Run it for a high-fear environment
     return run_portfolio_optimizer(
-        total_capital=total_capital,
+        total_capital_at_start=total_capital,
         names=names,
         betas=betas,
         yields=yields,
@@ -288,7 +309,8 @@ def test():
         vix_level=vix_level,
         current_holdings_dict=current_holdings_dict,
         max_weight=max_weight,
-        min_yield=min_yield
+        min_yield=min_yield,
+        new_cash=0.0
     )
 
 
