@@ -41,6 +41,7 @@ class PortfolioOptimizerParams:
     max_weight: float = 0.35
     min_yield: float = 0.03
     new_cash: float = 0.0
+    objective_mode: str = "MAX_RETURN"
 
 
 def _parse_correlation_matrix(correlation_matrix: MarketData.CorrelationMatrix, symbols: list[str]) -> np.ndarray:
@@ -79,6 +80,7 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
     data_map = supply_data.metaData
 
     risk_mode = _parse_str(data_map, 'risk_mode')
+    objective_mode = _parse_str(data_map, 'objective_mode')
     vix = _parse_float(data_map, 'vix')
     target_beta = _parse_float(data_map, 'target_beta')
     max_vol = _parse_float(data_map, 'max_vol')
@@ -132,7 +134,8 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
         vix_level=vix,
         max_weight=max_weight,
         min_yield=min_yield,
-        new_cash=new_cash
+        new_cash=new_cash,
+        objective_mode=objective_mode
     )
 
 
