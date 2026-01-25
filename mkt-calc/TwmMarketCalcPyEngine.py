@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 from dataclasses import dataclass, asdict
@@ -139,6 +140,34 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
     )
 
 
+def _parse_optimizer_json_to_portfolio(input_data: str) -> MarketData.Portfolio:
+    data = json.loads(input_data)
+
+    portfolio = MarketData.Portfolio()
+    supply_data = MarketData.Instrument()
+    supply_data.metaData['status'] = data['status']
+
+    if data['status'] == 'optimal':
+        supply_data.metaData['epr'] = str(data['summary_metrics']['expected_return'])
+        supply_data.metaData['vol'] = str(data['summary_metrics']['volatility'])
+        supply_data.metaData['beta'] = str(data['summary_metrics']['beta'])
+        supply_data.metaData['pe'] = str(data['summary_metrics']['pe_ratio'])
+        supply_data.metaData['epy'] = str(data['summary_metrics']['dividend_yield'])
+
+        for asset in data['assets']:
+            imnt = MarketData.Instrument()
+            imnt.ticker.symbol = asset['ticker']
+            imnt.qty = asset['weight']
+            imnt.metaData['current_val'] = str(asset['current_value'])
+            imnt.metaData['target_val'] = str(asset['target_value'])
+            imnt.metaData['action'] = asset['action']
+            portfolio.instruments.append(imnt)
+    else:
+        supply_data.metaData['cvxpy_status'] = data['cvxpy_status']
+    portfolio.instruments.insert(0, supply_data)
+    return portfolio
+
+
 def run_portfolio_optimizer(total_capital_at_start: float,
                             names: list[str],
                             betas: np.ndarray[tuple[float]],
@@ -153,11 +182,11 @@ def run_portfolio_optimizer(total_capital_at_start: float,
                             risk_mode: str,
                             target_beta: float,
                             vix_level: float,
-                            max_weight=.35, min_yield=.03,
+                            max_weight=.35,
+                            min_yield=.03,
                             new_cash=0.0,
                             objective_mode="MAX_RETURN"):
     total_to_allocate = total_capital_at_start + new_cash
-
     D = np.diag(std_devs)
     covariance_matrix = D @ corr_matrix @ D
 
@@ -165,6 +194,7 @@ def run_portfolio_optimizer(total_capital_at_start: float,
     weights = cp.Variable(len(names))
     portfolio_variance = cp.quad_form(weights, covariance_matrix)
 
+    # Objective logic
     if objective_mode == "MAX_YIELD":
         objective = cp.Maximize(weights @ yields)
     elif objective_mode == "BALANCED":
@@ -185,39 +215,48 @@ def run_portfolio_optimizer(total_capital_at_start: float,
     prob = cp.Problem(objective, constraints)
     prob.solve()
 
-    # COMPREHENSIVE OUTPUT
     if prob.status == 'optimal':
         opt_w = weights.value
-        portfolio_vol = np.sqrt(portfolio_variance.value)
-        portfolio_beta = np.sum(opt_w * betas)
-        portfolio_return = np.sum(opt_w * returns)
-        portfolio_pe = np.sum(opt_w * pe_ratios)
-        portfolio_yield = np.sum(opt_w * yields)
+        portfolio_vol = float(np.sqrt(portfolio_variance.value))
+        portfolio_beta = float(np.sum(opt_w * betas))
+        portfolio_return = float(np.sum(opt_w * returns))
+        portfolio_pe = float(np.sum(opt_w * pe_ratios))
+        portfolio_yield = float(np.sum(opt_w * yields))
+
+        asset_details = []
 
         print(f"============================================================")
         print(f" MARKET CONTEXT: {risk_mode}")
         print(f" VIX Level: {vix_level} | Status: {prob.status.upper()}")
         print(f"============================================================")
         print(
-            f"{'Stock':<15} | {'Weight':<8} | {'Current $':<10} | {'Target $':<10} | {'Return 0':<9} | {'Yield 0':<9} | {'Action'}")
-        print(f"-" * 70)
+            f"{'Stock':<15} | {'Weight':<8} | {'Current $':<10} | {'Target $':<10} | {'Return':<9} | {'Yield':<9} | {'Action'}")
+        print(f"-" * 95)
 
         for i, name in enumerate(names):
-            # Target $ is based on the NEW total
-            opt_val = opt_w[i] * total_to_allocate
-            curr_val = current_holdings_dict.get(name, 0)
-            diff = opt_val - curr_val
+            opt_val = float(opt_w[i] * total_to_allocate)
+            curr_val = float(current_holdings_dict.get(name, 0))
+            trade_amount = opt_val - curr_val
 
-            # If diff is positive, we use 'new_cash' or proceeds from 'sells' to buy
-            if diff > 10:
-                action = f"BUY ${diff:,.0f}"
-            elif diff < -10:
-                action = f"SELL ${abs(diff):,.0f}"
+            # Action string for print
+            if trade_amount > 10:
+                action_str = f"BUY ${trade_amount:,.0f}"
+            elif trade_amount < -10:
+                action_str = f"SELL ${abs(trade_amount):,.0f}"
             else:
-                action = "--"
+                action_str = "--"
 
             print(
-                f"{name:<15} | {opt_w[i]:<8.1%} | ${curr_val:>9,.0f} | ${opt_val:>9,.0f} | {returns[i]:>9,.2f} | {yields[i]:>9,.2f} | {action}")
+                f"{name:<15} | {opt_w[i]:<8.1%} | ${curr_val:>9,.0f} | ${opt_val:>9,.0f} | {returns[i]:>9.2%} | {yields[i]:>9.2%} | {action_str}")
+
+            asset_details.append({
+                "ticker": name,
+                "weight": round(float(opt_w[i]), 4),
+                "current_value": curr_val,
+                "target_value": round(opt_val, 2),
+                "trade_amount": round(trade_amount, 2),
+                "action": action_str
+            })
 
         print(f"============================================================")
         print(f" PORTFOLIO RISK & RETURN METRICS")
@@ -228,10 +267,25 @@ def run_portfolio_optimizer(total_capital_at_start: float,
         print(f" AVERAGE P/E RATIO      : {portfolio_pe:>8.1f} (Limit: {max_pe:.1f})")
         print(f" PORTFOLIO YIELD        : {portfolio_yield:>8.2%} (Min: {min_yield:.0%})")
         print(f"============================================================")
-    else:
-        print(f"Optimization failed. Constraints are too restrictive for these assets => {prob.status}")
 
-    return "Done for now"
+        # Build final JSON response
+        response_data = {
+            "status": prob.status,
+            "summary_metrics": {
+                "expected_return": round(portfolio_return, 4),
+                "volatility": round(portfolio_vol, 4),
+                "beta": round(portfolio_beta, 3),
+                "pe_ratio": round(portfolio_pe, 2),
+                "dividend_yield": round(portfolio_yield, 4)
+            },
+            "assets": asset_details
+        }
+
+        return json.dumps(response_data)
+
+    else:
+        error_resp = {"status": "failed", "cvxpy_status": prob.status}
+        return json.dumps(error_resp)
 
 
 @app.route('/calc/portfolio/optimizer', methods=['POST'])
@@ -247,7 +301,9 @@ def portfolio_optimizer():
         return jsonify({"error": f"Failed to parse protobuf: {str(e)}"}), 400
 
     params = _parse_portfolio(portfolio)
-    return run_portfolio_optimizer(**asdict(params))
+    optimizer_result_json = run_portfolio_optimizer(**asdict(params))
+    response_portfolio = _parse_optimizer_json_to_portfolio(optimizer_result_json)
+    return response_portfolio.SerializeToString(), 200, {'Content-Type': 'application/x-protobuf'}
 
 
 @app.route('/test', methods=['GET'])
