@@ -11,3 +11,6 @@ scipy
 numpy
 cvxpy
 py_eureka_client
+ecos
+cvxopt
+scip

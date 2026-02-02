@@ -27,13 +27,16 @@ args = parser.parse_args()
 class PortfolioOptimizerParams:
     total_capital_at_start: float
     names: list[str]
+    sectors: list[str]
     betas: np.ndarray
     yields: np.ndarray
     returns: np.ndarray
     std_devs: np.ndarray
     pe_ratios: np.ndarray
+    max_weights_vec: np.ndarray
     corr_matrix: np.ndarray
     current_holdings_dict: dict[str, float]
+    sector_caps: dict[str, float]
     max_vol: float
     max_pe: float
     risk_mode: str
@@ -61,13 +64,23 @@ def _parse_correlation_matrix(correlation_matrix: MarketData.CorrelationMatrix, 
     return corr_array
 
 
-def _parse_str(data_map, key):
+def _parse_str(data_map, key) -> str | Exception:
     if key in data_map: return data_map[key]
     raise Exception(f"Did not find {key} in data map")
 
 
-def _parse_float(data_map, key):
+def _parse_float(data_map, key) -> float | Exception:
     return float(_parse_str(data_map, key))
+
+
+def _parse_sector_caps(data_map, key) -> dict[str, float]:
+    data = _parse_str(data_map, key).strip()
+    sc = {}
+    for entry in data.split("|"):
+        parts = entry.strip().split("=")
+        sector, cap = parts[0], float(parts[1])
+        sc[sector] = cap
+    return sc
 
 
 def _parse_portfolio(portfolio: MarketData.Portfolio):
@@ -89,14 +102,16 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
     max_weight = _parse_float(data_map, 'max_weight')
     min_yield = _parse_float(data_map, 'min_yield')
     new_cash = _parse_float(data_map, 'new_cash')
+    sector_caps = _parse_sector_caps(data_map, 'sector_caps')
 
-    symbols, betas, yields, returns, std_devs, pe_ratios = [], [], [], [], [], []
+    symbols, sectors, betas, yields, returns, std_devs, pe_ratios, max_weight_vec = [], [], [], [], [], [], [], []
     total_capital = 0.0
     current_holdings_dict = {}
 
     for i in range(1, len(imnts)):
         imnt = imnts[i]
         symbol = imnt.ticker.symbol
+        sector = imnt.ticker.sector
         beta = imnt.beta
         div_yield = imnt.dividendYield
 
@@ -104,30 +119,45 @@ def _parse_portfolio(portfolio: MarketData.Portfolio):
         imnt_return = _parse_float(data_map, 'return')
         std_dev = _parse_float(data_map, 'std_dev')
         pe_ratio = _parse_float(data_map, 'pe_ratio')
+        imnt_max_weight = _parse_float(data_map, 'max_weight')
 
         capital = imnt.ticker.data[0].price
         total_capital += capital
         current_holdings_dict[symbol] = capital
 
         symbols.append(symbol)
+        sectors.append(sector)
         betas.append(beta)
         yields.append(div_yield)
         returns.append(imnt_return)
         std_devs.append(std_dev)
         pe_ratios.append(pe_ratio)
+        max_weight_vec.append(imnt_max_weight)
 
     corr_matrix = _parse_correlation_matrix(portfolio.correlationMatrix, symbols)
+    print(f"symbols len > {len(symbols)}")
+    print(f"sectors len > {len(sectors)}")
+    print(f"beta len > {len(betas)}")
+    print(f"yields len > {len(yields)}")
+    print(f"returns len > {len(returns)}")
+    print(f"std_devs len > {len(std_devs)}")
+    print(f"pe_ratios len > {len(pe_ratios)}")
+    print(f"max_weight_vec len > {len(max_weight_vec)}")
+    print(f"corr_matrix len > {len(corr_matrix)}")
 
     return PortfolioOptimizerParams(
         total_capital_at_start=total_capital,
         names=symbols,  # careful here
+        sectors=sectors,
         betas=np.array(betas),
         yields=np.array(yields),
         returns=np.array(returns),
         std_devs=np.array(std_devs),
         pe_ratios=np.array(pe_ratios),
+        max_weights_vec=np.array(max_weight_vec),
         corr_matrix=corr_matrix,
         current_holdings_dict=current_holdings_dict,
+        sector_caps=sector_caps,
         max_vol=max_vol,
         max_pe=max_pe,
         risk_mode=risk_mode,
@@ -170,13 +200,16 @@ def _parse_optimizer_json_to_portfolio(input_data: str) -> MarketData.Portfolio:
 
 def run_portfolio_optimizer(total_capital_at_start: float,
                             names: list[str],
+                            sectors: list[str],
                             betas: np.ndarray[tuple[float]],
                             yields: np.ndarray[tuple[float]],
                             returns: np.ndarray[tuple[float]],
                             std_devs: np.ndarray[tuple[float]],
                             pe_ratios: np.ndarray[tuple[float]],
+                            max_weights_vec: np.ndarray[tuple[float]],
                             corr_matrix: numpy.ndarray,
                             current_holdings_dict: dict[str, float],
+                            sector_caps: dict[str, float],
                             max_vol: float,
                             max_pe: float,
                             risk_mode: str,
@@ -187,8 +220,45 @@ def run_portfolio_optimizer(total_capital_at_start: float,
                             new_cash=0.0,
                             objective_mode="MAX_RETURN"):
     total_to_allocate = total_capital_at_start + new_cash
+    print(names)
+    """
     D = np.diag(std_devs)
     covariance_matrix = D @ corr_matrix @ D
+    # covariance_matrix = D @ corr_matrix @ D + 1e-7 * np.eye(len(names))
+
+    # NEW ROBUST FIX: Eigenvalue Reconstruction
+    # This forces the matrix to be mathematically "solvable"
+    vals, vecs = np.linalg.eigh(covariance_matrix)
+    vals = np.maximum(vals, 1e-8)  # Clip any negative or near-zero eigenvalues
+    covariance_matrix = vecs @ np.diag(vals) @ vecs.T
+
+    # Add a slightly larger diagonal "nudge" for 50+ assets
+    covariance_matrix += np.eye(len(names)) * 1e-6
+    """
+    # --- DATA SANITIZER BLOCK ---
+    # 1. Ensure everything is a clean NumPy array
+    returns = np.nan_to_num(np.array(returns), nan=0.0)
+    yields = np.nan_to_num(np.array(yields), nan=0.0)
+    pe_ratios = np.nan_to_num(np.array(pe_ratios), nan=20.0)  # Default PE if NaN
+    betas = np.nan_to_num(np.array(betas), nan=1.0)  # Default Beta if NaN
+
+    # 2. Fix the Correlation Matrix (The most likely culprit)
+    corr_matrix = np.array(corr_matrix)
+    corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)  # Replace NaNs with 0 (no correlation)
+
+    # 3. Force Perfect Symmetry
+    # This ensures corr[i][j] == corr[j][i] exactly
+    corr_matrix = (corr_matrix + corr_matrix.T) / 2
+    np.fill_diagonal(corr_matrix, 1.0)  # Ensure diagonal is exactly 1.0
+
+    # 4. Re-calculate Covariance with a safety margin
+    D = np.diag(std_devs)
+    covariance_matrix = D @ corr_matrix @ D
+    covariance_matrix += np.eye(len(names)) * 1e-4  # Stronger nudge for stability
+
+    print(f"Any NaNs in returns: {np.isnan(returns).any()}")
+    print(f"Any NaNs in cov: {np.isnan(covariance_matrix).any()}")
+    print(f"Min std_dev: {np.min(std_devs)}")
 
     # OPTIMIZATION
     weights = cp.Variable(len(names))
@@ -196,24 +266,40 @@ def run_portfolio_optimizer(total_capital_at_start: float,
 
     # Objective logic
     if objective_mode == "MAX_YIELD":
-        objective = cp.Maximize(weights @ yields)
+        obj_expr = weights @ yields
     elif objective_mode == "BALANCED":
-        objective = cp.Maximize(0.5 * (weights @ returns) + 0.5 * (weights @ yields))
+        obj_expr = 0.5 * (weights @ returns) + 0.5 * (weights @ yields)
     else:
-        objective = cp.Maximize(weights @ returns)
+        obj_expr = weights @ returns
+
+    # Add small HHI penalty to favor diversification if yields are equal
+    objective = cp.Maximize(obj_expr - 1e-4 * cp.sum_squares(weights))
 
     constraints = [
         cp.sum(weights) == 1,
         weights >= 0,
-        weights <= max_weight,  # Position Cap
+        # weights <= max_weight,  # Position Cap
+        weights <= max_weights_vec,
         weights @ betas <= target_beta,
         weights @ yields >= min_yield,  # Yield Target
         weights @ pe_ratios <= max_pe,
         portfolio_variance <= max_vol ** 2
     ]
 
+    # SECTOR CONSTRAINTS: find indices of stocks belonging to each sector and sum their weights
+    unique_sectors = set(sectors)
+    for sector in unique_sectors:
+        if sector in sector_caps:
+            # Create a boolean mask for this sector
+            indices = [i for i, s in enumerate(sectors) if s == sector]
+            constraints.append(cp.sum(weights[indices]) <= sector_caps[sector])
+
     prob = cp.Problem(objective, constraints)
     prob.solve()
+    # prob.solve(verbose=True)
+    # prob.solve(solver=cp.SCS, verbose=True, max_iters=5000)
+    # prob.solve(solver=cp.OSQP, eps_abs=1e-5, eps_rel=1e-5, verbose=True)
+    # prob.solve(solver=cp.ECOS, verbose=True)
 
     if prob.status == 'optimal':
         opt_w = weights.value
@@ -266,6 +352,11 @@ def run_portfolio_optimizer(total_capital_at_start: float,
         print(f" OVERALL PORTFOLIO BETA : {portfolio_beta:>8.2f} (Limit: {target_beta:.2f})")
         print(f" AVERAGE P/E RATIO      : {portfolio_pe:>8.1f} (Limit: {max_pe:.1f})")
         print(f" PORTFOLIO YIELD        : {portfolio_yield:>8.2%} (Min: {min_yield:.0%})")
+        print(f"--- Sector Allocation ---")
+        for sector in unique_sectors:
+            s_weight = sum(opt_w[i] for i, s in enumerate(sectors) if s == sector)
+            print(f"{sector:<15}: {s_weight:>7.1%}")
+
         print(f"============================================================")
 
         # Build final JSON response
@@ -284,6 +375,7 @@ def run_portfolio_optimizer(total_capital_at_start: float,
         return json.dumps(response_data)
 
     else:
+        print(f"Optimization failed. Constraints are too restrictive for these assets => {prob.status}")
         error_resp = {"status": "failed", "cvxpy_status": prob.status}
         return json.dumps(error_resp)
 
@@ -322,6 +414,7 @@ def test():
     # --- 1. DATA & MARKET SETTINGS ---
     total_capital = sum(current_holdings_dict.values())
     names = ['Tech Growth', 'Blue Chip', 'Utility Co', 'Consumer Staple', 'Bank Stock']
+    sectors = ['tech', 'unknown', 'util', 'cons-cy', 'fin']
 
     # Fundamental & Risk Data
     betas = np.array([1.50, 1.10, 0.55, 0.45, 0.90])
@@ -329,6 +422,10 @@ def test():
     returns = np.array([0.18, 0.11, 0.06, 0.07, 0.09])
     std_devs = np.array([0.28, 0.18, 0.12, 0.10, 0.15])
     pe_ratios = np.array([45, 18, 14, 21, 10])
+    max_weight_vec = np.array([.25, .25, .25, .25, .45])
+    sector_caps = {
+        'fin': .40
+    }
 
     # Contrarian Logic: Adjusting Targets based on VIX
     if vix_level > 25:
@@ -355,11 +452,13 @@ def test():
     return run_portfolio_optimizer(
         total_capital_at_start=total_capital,
         names=names,
+        sectors=sectors,
         betas=betas,
         yields=yields,
         returns=returns,
         std_devs=std_devs,
         pe_ratios=pe_ratios,
+        max_weights_vec=max_weight_vec,
         corr_matrix=corr_matrix,
         max_vol=max_volatility,
         max_pe=max_pe,
@@ -367,6 +466,7 @@ def test():
         target_beta=target_beta,
         vix_level=vix_level,
         current_holdings_dict=current_holdings_dict,
+        sector_caps=sector_caps,
         max_weight=max_weight,
         min_yield=min_yield,
         new_cash=0.0
