@@ -1,13 +1,14 @@
+import argparse
 import os
 import sys
 from datetime import datetime
 
 import pandas as pd
+import py_eureka_client.eureka_client as eureka_client
+import py_eureka_client.netint_utils as netint_utils
 import yfinance as yf
 from flask import Flask, request
 from flask_cors import CORS
-import py_eureka_client.eureka_client as eureka_client
-import argparse
 
 from Instrument import Instrument
 
@@ -296,10 +297,14 @@ if __name__ == '__main__':
         # Initialize the Eureka client
         try:
             print("Attempting registering onto eureka server")
+            local_ip = netint_utils.get_first_non_loopback_ip()  # prevent dhcp ip hostname clash
+
             eureka_client.init(
                 eureka_server="http://localhost:2012/eureka",
                 app_name="twm-market-data-engine",
-                instance_port=args.port
+                instance_port=args.port,
+                instance_ip=local_ip,
+                instance_host=local_ip
             )
             print("Registered onto eureka server")
         except Exception as e:

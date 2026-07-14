@@ -8,6 +8,7 @@ import cvxpy as cp
 import numpy
 import numpy as np
 import py_eureka_client.eureka_client as eureka_client
+import py_eureka_client.netint_utils as netint_utils
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -480,10 +481,14 @@ if __name__ == '__main__':
         # Initialize the Eureka client
         try:
             print("Attempting registering onto eureka server")
+            local_ip = netint_utils.get_first_non_loopback_ip()  # prevent dhcp ip hostname clash
+
             eureka_client.init(
                 eureka_server="http://localhost:2012/eureka",
                 app_name="twm-calc-py-engine",
-                instance_port=args.port
+                instance_port=args.port,
+                instance_ip=local_ip,
+                instance_host=local_ip
             )
             print("Registered onto eureka server")
         except Exception as e:
