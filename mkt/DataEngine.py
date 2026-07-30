@@ -124,18 +124,22 @@ def get_ticker_type_without_country(symbol):
     return ticker.info['quoteType']
 
 
+def _get_ticker_name(ticker):
+    name = ticker.info['longName'] if 'longName' in ticker.info else ticker.info['shortName']
+    return str(name)
+
 @app.route('/mkt/<country_code>/ticker/name/<symbol>', methods=['GET'])
 def get_ticker_name(country_code, symbol):
     # http://localhost:8083/mkt/CA/ticker/name/CCO
     ticker = yf.Ticker(get_symbol(symbol, country_code))
-    return str(ticker.info['longName']).replace(",", "")
+    return _get_ticker_name(ticker).replace(",", "")
 
 
 @app.route('/mkt/ticker/name/<symbol>', methods=['GET'])
 def get_ticker_name_without_country(symbol):
     # http://localhost:8083/mkt/ticker/name/CCO
     ticker = yf.Ticker(symbol)
-    return str(ticker.info['longName']).replace(",", "")
+    return _get_ticker_name(ticker).replace(",", "")
 
 
 # @app.route('/proto/mkt/<country_code>/ticker/name/<symbol>', methods=['GET'])
